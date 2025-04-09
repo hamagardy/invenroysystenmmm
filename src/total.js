@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ref, set, onValue } from "firebase/database";
 import { realtimeDb } from "./firebase";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,7 @@ import jsPDF from "jspdf";
 function Total({ inventory, setInventory, user }) {
   const { t } = useTranslation();
   const contentRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState(""); // New state for search
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -95,6 +96,11 @@ function Total({ inventory, setInventory, user }) {
   const totalStock = inventory.reduce((sum, item) => sum + item.qty, 0);
   const totalItems = inventory.length;
 
+  // Filter inventory based on search term
+  const filteredInventory = inventory.filter((item) =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   const handleExportPDF = () => {
     const input = contentRef.current;
     if (!input) {
@@ -102,36 +108,53 @@ function Total({ inventory, setInventory, user }) {
       return;
     }
 
-    // Hide action column for PDF
+    // Hide action column and buttons for PDF
     const actionCells = input.querySelectorAll(".action-cell");
     actionCells.forEach((cell) => (cell.style.display = "none"));
 
-    html2canvas(input, { scale: 2, useCORS: true, logging: true })
+    // Temporarily adjust styles for PDF clarity
+    input.style.fontSize = "12px"; // Consistent font size
+    input.style.width = "100%"; // Ensure full width for capture
+    input.style.overflow = "visible"; // Prevent clipping
+
+    html2canvas(input, {
+      scale: 2, // Higher scale for better resolution
+      useCORS: true,
+      logging: false, // Disable logging for cleaner output
+      windowWidth: document.body.scrollWidth, // Capture full width
+      windowHeight: document.body.scrollHeight, // Capture full height
+    })
       .then((canvas) => {
-        const imgData = canvas.toDataURL("image/png", 1.0);
+        const imgData = canvas.toDataURL("image/png", 1.0); // High quality
         const pdf = new jsPDF("p", "mm", "a4");
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
         const imgWidth = canvas.width / 2; // Adjusted for scale: 2
         const imgHeight = canvas.height / 2;
-        const scaleFactor = pageWidth / imgWidth;
+        const scaleFactor = (pageWidth - 10) / imgWidth; // Margin of 5mm on each side
         const scaledHeight = Math.min(imgHeight * scaleFactor, pageHeight - 20);
 
         pdf.setFontSize(14);
         pdf.text("Inventory System By @Hamagardy", pageWidth / 2, 10, {
           align: "center",
         });
-        pdf.addImage(imgData, "PNG", 0, 15, pageWidth, scaledHeight);
+        pdf.addImage(imgData, "PNG", 5, 15, pageWidth - 10, scaledHeight); // Center with margins
         pdf.save("inventory_total.pdf");
 
-        // Restore action column
+        // Restore original styles
         actionCells.forEach((cell) => (cell.style.display = ""));
+        input.style.fontSize = "";
+        input.style.width = "";
+        input.style.overflow = "";
       })
       .catch((error) => {
         console.error("PDF export error:", error);
         alert("Error: Failed to export PDF");
-        // Restore action column in case of error
+        // Restore styles in case of error
         actionCells.forEach((cell) => (cell.style.display = ""));
+        input.style.fontSize = "";
+        input.style.width = "";
+        input.style.overflow = "";
       });
   };
 
@@ -142,7 +165,7 @@ function Total({ inventory, setInventory, user }) {
         className="w-full max-w-[90%] md:max-w-3xl lg:max-w-5xl bg-white dark:bg-slate-900 p-6 rounded-lg shadow-md text-gray-900 dark:text-slate-50"
       >
         <h2 className="text-3xl font-bold mb-6">{t("Total Items")}</h2>
-        <div className="flex space-x-4 mb-4">
+        <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mb-4">
           <button
             onClick={handleAddItem}
             className="bg-blue-500 text-white px-4 py-2 rounded-md"
@@ -155,8 +178,15 @@ function Total({ inventory, setInventory, user }) {
           >
             {t("Export to PDF")}
           </button>
+          <input
+            type="text"
+            className="p-2 w-full sm:w-1/3 border rounded-md dark:bg-slate-700 dark:border-slate-600"
+            placeholder={t("Search Items")}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        {inventory.length === 0 ? (
+        {filteredInventory.length === 0 ? (
           <p className="text-gray-700 dark:text-slate-300">
             {t("No items in inventory yet")}
           </p>
@@ -173,7 +203,7 @@ function Total({ inventory, setInventory, user }) {
                 </tr>
               </thead>
               <tbody>
-                {inventory.map((item) => (
+                {filteredInventory.map((item) => (
                   <tr key={item.id}>
                     <td className="p-4">{item.id}</td>
                     <td className="p-4">{item.name}</td>

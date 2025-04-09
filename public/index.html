@@ -1,46 +1,52 @@
-for this only <!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <link rel="manifest" href="/manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <!--
-      manifest.json provides metadata used when your web app is added to the
-      homescreen on Android. See https://developers.google.com/web/fundamentals/engage-and-retain/web-app-manifest/
-    -->
-       <!-- Android manifest -->
-       <link rel="manifest" href="/manifest.json" />
-       <!-- iOS and Android icons -->
-       <link rel="apple-touch-icon" href="https://i.ibb.co/3YNfbWGR/image.png" />
-       <link rel="icon" href="https://i.ibb.co/3YNfbWGR/image.png" />
-       <link rel="shortcut icon" href="https://i.ibb.co/3YNfbWGR/image.png" />
+    <!-- Android manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <!-- iOS and Android icons -->
+    <link rel="apple-touch-icon" href="https://i.ibb.co/3YNfbWGR/image.png" />
+    <link rel="icon" href="https://i.ibb.co/3YNfbWGR/image.png" />
+    <link rel="shortcut icon" href="https://i.ibb.co/3YNfbWGR/image.png" />
+    <!-- Tailwind CSS for responsiveness -->
     <link
       href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
       rel="stylesheet"
     />
-<!--
-  Notice the use of %PUBLIC_URL% in the tags above.
-  It will be replaced with the URL of the `public` folder during the build.
-  Only files inside the `public` folder can be referenced from the HTML.
-
-  Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-  work correctly both with client-side routing and a non-root public URL.
-  Learn how to configure a non-root public URL by running npm run build.
--->
-
-  <title>Maxzani</title>
-</head>
-<body>
-  <noscript>You need to enable JavaScript to run this app.</noscript>
-  <div id="root"></div>
-</body>
+    <style>
+      /* Ensure full height and mobile-friendly layout */
+      html, body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+      }
+      #root {
+        min-height: 100vh; /* Allow content to expand */
+        width: 100vw;
+        display: flex;
+        flex-direction: column;
+      }
+      /* iOS-like mobile adjustments */
+      @media (max-width: 768px) {
+        #root {
+          padding: 0 10px; /* Slight padding for mobile */
+          box-sizing: border-box;
+        }
+      }
+    </style>
+    <title>Maxzani</title>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
 </html>
-
