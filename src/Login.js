@@ -66,7 +66,7 @@ function Login({ setUser }) {
           className="mb-4 p-2 w-full border rounded-md dark:bg-slate-700 dark:border-slate-600"
         />
         <p className="text-center text-gray-600 dark:text-slate-300 mb-4">
-          Inventory System App Beta 1 powered by{" "}
+          Maxzani System App Beta 1 powered by{" "}
           <a
             href="http://www.hamagardy.com"
             target="_blank"

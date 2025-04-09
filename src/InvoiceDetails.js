@@ -30,7 +30,6 @@ function InvoiceDetails({
   // Initialize state only once when entering edit mode
   useEffect(() => {
     if (invoice && isEditing && !customerName) {
-      // Only set initial values if not already edited
       setCustomerName(invoice.customerName);
       setSelectedItems(invoice.items.map((item) => ({ ...item })));
       setInvoiceDate(new Date(invoice.date).toISOString().split("T")[0]);
@@ -120,7 +119,7 @@ function InvoiceDetails({
         (acc, item) => acc + item.orderedQty * item.price,
         0
       ),
-      invoiceNumber,
+      invoiceNumber, // Ensure invoice number is saved
       invoiceImageUrl,
       notes,
     };

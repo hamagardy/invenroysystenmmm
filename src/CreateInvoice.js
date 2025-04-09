@@ -13,6 +13,7 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
     bonusQty: "",
   });
   const [invoiceDate, setInvoiceDate] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
 
   // Fetch invoices from Firebase
   useEffect(() => {
@@ -53,10 +54,15 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
     }
   };
 
+  const handleDeleteItem = (index) => {
+    const updatedItems = selectedItems.filter((_, i) => i !== index);
+    setSelectedItems(updatedItems);
+  };
+
   const handleSaveInvoice = async () => {
     if (customerName && selectedItems.length > 0 && invoiceDate) {
       const newInvoice = {
-        id: Date.now(), // Use timestamp for unique ID
+        id: Date.now(),
         customerName,
         date: new Date(invoiceDate).toISOString(),
         items: selectedItems,
@@ -65,6 +71,7 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
           0
         ),
         type: "sale",
+        invoiceNumber,
       };
 
       const updatedInventory = inventory.map((item) => {
@@ -78,11 +85,9 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
         return item;
       });
 
-      // Update state
       setInvoices([...invoices, newInvoice]);
       setInventory(updatedInventory);
 
-      // Sync to Firebase
       const invoicesRef = ref(realtimeDb, "invoices");
       const inventoryRef = ref(realtimeDb, "inventory");
       await Promise.all([
@@ -90,14 +95,19 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
         set(inventoryRef, updatedInventory),
       ]).catch((error) => console.error("Error syncing data:", error));
 
-      // Reset form
       setCustomerName("");
       setSelectedItems([]);
       setInvoiceDate("");
+      setInvoiceNumber("");
     } else {
       alert(t("Please provide a customer name, items, and invoice date"));
     }
   };
+
+  // Sort inventory items by name
+  const sortedInventory = [...inventory].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 
   return (
     <div className="w-full">
@@ -111,6 +121,13 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
           placeholder={t("Customer Name")}
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
+        />
+        <input
+          type="text"
+          className="mb-4 p-2 w-full border rounded-md dark:bg-slate-700 dark:border-slate-600"
+          placeholder={t("Invoice Number")}
+          value={invoiceNumber}
+          onChange={(e) => setInvoiceNumber(e.target.value)}
         />
         <input
           type="date"
@@ -127,7 +144,7 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
             }
           >
             <option value="">{t("Select Item")}</option>
-            {inventory.map((item) => (
+            {sortedInventory.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} - {item.qty} {t("in stock")}
               </option>
@@ -163,9 +180,17 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
           <h3 className="font-semibold">{t("Items")}</h3>
           <ul className="list-disc pl-6">
             {selectedItems.map((item, index) => (
-              <li key={index}>
-                {item.name} - {item.orderedQty} x ${item.price} (Bonus:{" "}
-                {item.bonusQty})
+              <li key={index} className="flex justify-between items-center">
+                <span>
+                  {item.name} - {item.orderedQty} x ${item.price} (Bonus:{" "}
+                  {item.bonusQty})
+                </span>
+                <button
+                  onClick={() => handleDeleteItem(index)}
+                  className="bg-red-500 text-white px-2 py-1 rounded-md ml-4"
+                >
+                  {t("Delete")}
+                </button>
               </li>
             ))}
           </ul>
