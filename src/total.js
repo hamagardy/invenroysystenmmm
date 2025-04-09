@@ -8,7 +8,6 @@ import jsPDF from "jspdf";
 function Total({ inventory, setInventory, user }) {
   const { t } = useTranslation();
   const contentRef = useRef(null);
-  const pdfContentRef = useRef(null);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -33,14 +32,12 @@ function Total({ inventory, setInventory, user }) {
       const newItem = { id: Date.now(), name, qty, price };
       const updatedInventory = [...inventory, newItem];
       setInventory(updatedInventory);
-
       if (user?.uid) {
         const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
         await set(inventoryRef, updatedInventory).catch((error) =>
           console.error("Error syncing inventory:", error)
         );
       }
-
       alert(t("Item added successfully"));
     } else {
       alert(t("Please provide a valid name, quantity, and price"));
@@ -53,13 +50,8 @@ function Total({ inventory, setInventory, user }) {
       alert(t("Incorrect password edit"));
       return;
     }
-
     const item = inventory.find((i) => i.id === itemId);
-    if (!item) {
-      alert(t("Item not found"));
-      return;
-    }
-
+    if (!item) return;
     const newName = prompt(t("Enter new item name"), item.name);
     const newQty = parseInt(prompt(t("Enter new quantity"), item.qty), 10);
     if (newName && !isNaN(newQty) && newQty >= 0) {
@@ -67,14 +59,12 @@ function Total({ inventory, setInventory, user }) {
         i.id === itemId ? { ...i, name: newName, qty: newQty } : i
       );
       setInventory(updatedInventory);
-
       if (user?.uid) {
         const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
         await set(inventoryRef, updatedInventory).catch((error) =>
           console.error("Error syncing inventory:", error)
         );
       }
-
       alert(t("Item edited successfully"));
     } else {
       alert(t("Please provide a valid name and quantity"));
@@ -87,23 +77,18 @@ function Total({ inventory, setInventory, user }) {
       alert(t("Incorrect password delete"));
       return;
     }
-
-    const confirmDelete = window.confirm(t("Confirm delete"));
-    if (!confirmDelete) {
+    if (!window.confirm(t("Confirm delete"))) {
       alert(t("Delete canceled"));
       return;
     }
-
     const updatedInventory = inventory.filter((i) => i.id !== itemId);
     setInventory(updatedInventory);
-
     if (user?.uid) {
       const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
       await set(inventoryRef, updatedInventory).catch((error) =>
         console.error("Error syncing inventory:", error)
       );
     }
-
     alert(t("Item deleted successfully"));
   };
 
@@ -111,67 +96,52 @@ function Total({ inventory, setInventory, user }) {
   const totalItems = inventory.length;
 
   const handleExportPDF = () => {
-    const input = pdfContentRef.current;
+    const input = contentRef.current;
     if (!input) {
-      console.error("PDF content ref is not available");
-      alert("Error: PDF content not found");
+      alert("Error: Content not found");
       return;
     }
 
-    console.log("Starting PDF export...");
-    html2canvas(input, { scale: 3, useCORS: true, logging: true }) // Increased scale for better resolution
+    // Hide action column for PDF
+    const actionCells = input.querySelectorAll(".action-cell");
+    actionCells.forEach((cell) => (cell.style.display = "none"));
+
+    html2canvas(input, { scale: 2, useCORS: true, logging: true })
       .then((canvas) => {
-        console.log("Canvas generated:", canvas);
-        const imgData = canvas.toDataURL("image/png", 1.0); // Ensure high quality
-        console.log("Image data length:", imgData.length);
-
-        if (!imgData || imgData === "data:,") {
-          console.error("Invalid image data from html2canvas");
-          alert("Error: Could not generate image data");
-          return;
-        }
-
+        const imgData = canvas.toDataURL("image/png", 1.0);
         const pdf = new jsPDF("p", "mm", "a4");
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-        const imgWidth = canvas.width / 3; // Adjusted for scale: 3
-        const imgHeight = canvas.height / 3;
-
+        const imgWidth = canvas.width / 2; // Adjusted for scale: 2
+        const imgHeight = canvas.height / 2;
         const scaleFactor = pageWidth / imgWidth;
-        let scaledHeight = imgHeight * scaleFactor;
+        const scaledHeight = Math.min(imgHeight * scaleFactor, pageHeight - 20);
 
-        if (scaledHeight > pageHeight - 20) {
-          scaledHeight = pageHeight - 20;
-          console.log("Height capped at:", scaledHeight);
-        }
-
-        pdf.setFontSize(14); // Slightly smaller title font
+        pdf.setFontSize(14);
         pdf.text("Inventory System By @Hamagardy", pageWidth / 2, 10, {
           align: "center",
         });
-
-        console.log("Adding image to PDF...");
         pdf.addImage(imgData, "PNG", 0, 15, pageWidth, scaledHeight);
-        console.log("Saving PDF...");
         pdf.save("inventory_total.pdf");
-        console.log("PDF export completed");
+
+        // Restore action column
+        actionCells.forEach((cell) => (cell.style.display = ""));
       })
       .catch((error) => {
-        console.error("Error during PDF export:", error);
+        console.error("PDF export error:", error);
         alert("Error: Failed to export PDF");
+        // Restore action column in case of error
+        actionCells.forEach((cell) => (cell.style.display = ""));
       });
   };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-50 dark:bg-slate-800">
-      {/* Main UI Content */}
       <div
         ref={contentRef}
-        className="w-full max-w-[90%] md:max-w-3xl lg:max-w-5xl bg-white dark:bg-slate-900 p-6 rounded-lg shadow-md"
+        className="w-full max-w-[90%] md:max-w-3xl lg:max-w-5xl bg-white dark:bg-slate-900 p-6 rounded-lg shadow-md text-gray-900 dark:text-slate-50"
       >
-        <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-slate-50">
-          {t("Total Items")}
-        </h2>
+        <h2 className="text-3xl font-bold mb-6">{t("Total Items")}</h2>
         <div className="flex space-x-4 mb-4">
           <button
             onClick={handleAddItem}
@@ -192,7 +162,7 @@ function Total({ inventory, setInventory, user }) {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-gray-900 dark:text-slate-50">
+            <table className="w-full">
               <thead>
                 <tr className="bg-gray-100 dark:bg-slate-700">
                   <th className="p-4 text-left">{t("ID")}</th>
@@ -209,7 +179,7 @@ function Total({ inventory, setInventory, user }) {
                     <td className="p-4">{item.name}</td>
                     <td className="p-4">{item.qty}</td>
                     <td className="p-4">${item.price.toFixed(2)}</td>
-                    <td className="p-4">
+                    <td className="p-4 action-cell">
                       <button
                         onClick={() => handleEditItem(item.id)}
                         className="bg-yellow-500 text-white px-2 py-1 rounded-md mr-2"
@@ -239,47 +209,6 @@ function Total({ inventory, setInventory, user }) {
               </tfoot>
             </table>
           </div>
-        )}
-      </div>
-
-      {/* Hidden PDF-specific content */}
-      <div
-        ref={pdfContentRef}
-        className="absolute top-[-9999px] left-[-9999px] w-[190mm] bg-white p-4 text-gray-900"
-        style={{ fontSize: "10px", lineHeight: "1.2" }} // Smaller font size and tighter line height
-      >
-        <h2 className="text-xl font-bold mb-4">{t("Total Items")}</h2>
-        {inventory.length === 0 ? (
-          <p>{t("No items in inventory yet")}</p>
-        ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-1 text-left border">{t("ID")}</th>
-                <th className="p-1 text-left border">{t("Name")}</th>
-                <th className="p-1 text-left border">{t("Quantity")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {inventory.map((item) => (
-                <tr key={item.id}>
-                  <td className="p-1 border">{item.id}</td>
-                  <td className="p-1 border">{item.name}</td>
-                  <td className="p-1 border">{item.qty}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-100 font-bold">
-                <td colSpan="2" className="p-1 text-left border">
-                  {t("Total Items")}: {totalItems}
-                </td>
-                <td className="p-1 text-left border">
-                  {t("Total Stock")}: {totalStock}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
         )}
       </div>
     </div>
