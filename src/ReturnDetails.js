@@ -25,20 +25,26 @@ function ReturnDetails({
     bonusQty: "",
   });
   const [returnDate, setReturnDate] = useState("");
-  const [returnImageUrl, setReturnImageUrl] = useState(""); // Added return-level image
+  const [returnInvoiceNumber, setReturnInvoiceNumber] = useState(""); // Added return invoice number
+  const [returnImageUrl, setReturnImageUrl] = useState("");
 
-  // Initialize state only once when entering edit mode
+  // Initialize state when entering edit mode
   useEffect(() => {
     if (returnRecord && isEditing && !customerName) {
-      // Only set if not already edited
       setCustomerName(returnRecord.customerName);
       setSelectedItems(returnRecord.items.map((item) => ({ ...item })));
       setReturnDate(new Date(returnRecord.date).toISOString().split("T")[0]);
-      setReturnImageUrl(returnRecord.returnImageUrl || ""); // Load image if exists
+      setReturnInvoiceNumber(returnRecord.returnInvoiceNumber || "");
+      setReturnImageUrl(returnRecord.returnImageUrl || "");
     }
   }, [returnRecord, isEditing]);
 
-  if (!returnRecord) return <div>{t("Return record not found!")}</div>;
+  if (!returnRecord)
+    return (
+      <div className="text-center text-gray-900 dark:text-slate-50">
+        {t("Return record not found!")}
+      </div>
+    );
 
   const handleAddItem = () => {
     if (currentItem.itemId && currentItem.returnedQty) {
@@ -51,12 +57,16 @@ function ReturnDetails({
       setSelectedItems([
         ...selectedItems,
         {
-          ...item,
+          id: item.id,
+          name: item.name,
+          price: item.price,
           returnedQty: parseInt(currentItem.returnedQty),
           bonusQty: parseInt(currentItem.bonusQty) || 0,
         },
       ]);
       setCurrentItem({ itemId: "", returnedQty: "", bonusQty: "" });
+    } else {
+      alert(t("Please select an item and specify a returned quantity"));
     }
   };
 
@@ -66,6 +76,11 @@ function ReturnDetails({
       ...updatedItems[index],
       [field]: parseInt(value) || 0,
     };
+    setSelectedItems(updatedItems);
+  };
+
+  const handleRemoveItem = (index) => {
+    const updatedItems = selectedItems.filter((_, i) => i !== index);
     setSelectedItems(updatedItems);
   };
 
@@ -79,7 +94,7 @@ function ReturnDetails({
       return;
     }
 
-    // Restore original quantities to inventory (subtract since it was added back)
+    // Restore original quantities to inventory (subtract since they were added back)
     const restoredInventory = inventory.map((item) => {
       const originalItem = returnRecord.items.find((si) => si.id === item.id);
       return originalItem
@@ -110,23 +125,32 @@ function ReturnDetails({
         (acc, item) => acc + item.returnedQty * item.price,
         0
       ),
-      returnImageUrl, // Save return image
+      returnInvoiceNumber, // Save return invoice number
+      returnImageUrl,
     };
 
     const updatedReturnHistory = returnHistory.map((rec) =>
       rec.id === returnRecord.id ? updatedReturn : rec
     );
+
+    // Update local state
     setReturnHistory(updatedReturnHistory);
     setInventory(updatedInventory);
 
+    // Sync to Firebase
     const returnHistoryRef = ref(realtimeDb, `users/${user.uid}/returnHistory`);
     const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
-    await Promise.all([
-      set(returnHistoryRef, updatedReturnHistory),
-      set(inventoryRef, updatedInventory),
-    ]).catch((error) => console.error("Error syncing data:", error));
-
-    setIsEditing(false);
+    try {
+      await Promise.all([
+        set(returnHistoryRef, updatedReturnHistory),
+        set(inventoryRef, updatedInventory),
+      ]);
+      alert(t("Return saved successfully"));
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error syncing data:", error);
+      alert(t("Failed to save return to database"));
+    }
   };
 
   const handleDelete = async () => {
@@ -138,6 +162,7 @@ function ReturnDetails({
         return;
       }
 
+      // Subtract returned quantities from inventory
       const updatedInventory = inventory.map((item) => {
         const returnItem = returnRecord.items.find((si) => si.id === item.id);
         return returnItem
@@ -167,11 +192,11 @@ function ReturnDetails({
   };
 
   return (
-    <div>
+    <div className="w-full">
       <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-slate-50">
         {t("Return Details")}
       </h2>
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md w-full">
         {isEditing ? (
           <>
             <input
@@ -180,6 +205,13 @@ function ReturnDetails({
               placeholder={t("Customer Name")}
               value={customerName}
               onChange={(e) => setCustomerName(e.target.value)}
+            />
+            <input
+              type="text"
+              className="mb-4 p-2 w-full border rounded-md dark:bg-slate-700 dark:border-slate-600"
+              placeholder={t("Return Invoice Number")}
+              value={returnInvoiceNumber}
+              onChange={(e) => setReturnInvoiceNumber(e.target.value)}
             />
             <input
               type="date"
@@ -259,26 +291,32 @@ function ReturnDetails({
               <h3 className="font-semibold">{t("Items Returned")}</h3>
               <ul className="list-disc pl-6">
                 {selectedItems.map((item, index) => (
-                  <li key={index} className="mb-4">
+                  <li key={index} className="mb-4 flex items-center">
                     {item.name} -{" "}
                     <input
                       type="number"
-                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline"
+                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline mx-2"
                       value={item.returnedQty}
                       onChange={(e) =>
                         handleEditItemQty(index, "returnedQty", e.target.value)
                       }
                     />{" "}
-                    x ${item.price} (Bonus:{" "}
+                    x {item.price.toFixed(2)} IQD (Bonus:{" "}
                     <input
                       type="number"
-                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline"
+                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline mx-2"
                       value={item.bonusQty}
                       onChange={(e) =>
                         handleEditItemQty(index, "bonusQty", e.target.value)
                       }
                     />
                     )
+                    <button
+                      onClick={() => handleRemoveItem(index)}
+                      className="ml-4 bg-red-500 text-white px-2 py-1 rounded-md"
+                    >
+                      {t("Remove")}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -289,6 +327,9 @@ function ReturnDetails({
             <h3 className="font-semibold mb-4">
               Customer: {returnRecord.customerName}
             </h3>
+            <p className="mb-4">
+              Return Invoice Number: {returnRecord.returnInvoiceNumber || "N/A"}
+            </p>
             <p className="mb-4">
               Date: {new Date(returnRecord.date).toLocaleDateString()}
             </p>
@@ -309,13 +350,13 @@ function ReturnDetails({
             <ul className="list-disc pl-6">
               {returnRecord.items.map((item, index) => (
                 <li key={index}>
-                  {item.name} - {item.returnedQty} x ${item.price.toFixed(2)}{" "}
+                  {item.name} - {item.returnedQty} x {item.price.toFixed(2)} IQD
                   (Bonus: {item.bonusQty})
                 </li>
               ))}
             </ul>
             <div className="mt-4 font-semibold">
-              <p>Total Refund: ${returnRecord.total.toFixed(2)}</p>
+              <p>Total Refund: {returnRecord.total.toFixed(2)} IQD</p>
             </div>
           </>
         )}
