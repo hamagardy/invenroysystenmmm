@@ -182,9 +182,14 @@ function CreateInvoice({ inventory, setInventory, invoices, setInvoices }) {
             {selectedItems.map((item, index) => (
               <li key={index} className="flex justify-between items-center">
                 <span>
-                  {item.name} - {item.orderedQty} x ${item.price} (Bonus:{" "}
-                  {item.bonusQty})
+                  {item.name} - {item.orderedQty} x{" "}
+                  {item.price.toLocaleString("en-IQ", {
+                    style: "currency",
+                    currency: "IQD",
+                  })}{" "}
+                  (Bonus: {item.bonusQty})
                 </span>
+
                 <button
                   onClick={() => handleDeleteItem(index)}
                   className="bg-red-500 text-white px-2 py-1 rounded-md ml-4"
