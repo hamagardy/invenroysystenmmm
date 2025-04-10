@@ -27,7 +27,7 @@ function InvoiceDetails({
   const [invoiceImageUrl, setInvoiceImageUrl] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Initialize state only once when entering edit mode
+  // Initialize state when entering edit mode
   useEffect(() => {
     if (invoice && isEditing && !customerName) {
       setCustomerName(invoice.customerName);
@@ -54,29 +54,40 @@ function InvoiceDetails({
       const requestedQty =
         parseInt(currentItem.qty) + (parseInt(currentItem.bonusQty) || 0);
 
-      if (!item || item.qty < requestedQty) {
-        alert(t("Not enough stock", { available: item?.qty || 0 }));
+      if (!item) {
+        alert(t("Item not found in inventory"));
+        return;
+      }
+      if (item.qty < requestedQty) {
+        alert(t("Not enough stock", { available: item.qty }));
         return;
       }
 
       setSelectedItems([
         ...selectedItems,
         {
-          ...item,
+          id: item.id,
+          name: item.name,
+          price: item.price,
           orderedQty: parseInt(currentItem.qty),
           bonusQty: parseInt(currentItem.bonusQty) || 0,
         },
       ]);
       setCurrentItem({ itemId: "", qty: "", bonusQty: "" });
+    } else {
+      alert(t("Please select an item and specify a quantity"));
     }
   };
 
   const handleEditItemQty = (index, field, value) => {
     const updatedItems = [...selectedItems];
-    updatedItems[index] = {
-      ...updatedItems[index],
-      [field]: parseInt(value) || 0,
-    };
+    const newValue = parseInt(value) || 0;
+    updatedItems[index] = { ...updatedItems[index], [field]: newValue };
+    setSelectedItems(updatedItems);
+  };
+
+  const handleRemoveItem = (index) => {
+    const updatedItems = selectedItems.filter((_, i) => i !== index);
     setSelectedItems(updatedItems);
   };
 
@@ -90,6 +101,7 @@ function InvoiceDetails({
       return;
     }
 
+    // Restore original inventory quantities
     const restoredInventory = inventory.map((item) => {
       const originalItem = invoice.items.find((si) => si.id === item.id);
       return originalItem
@@ -100,6 +112,7 @@ function InvoiceDetails({
         : item;
     });
 
+    // Deduct new quantities from inventory
     const updatedInventory = restoredInventory.map((item) => {
       const orderedItem = selectedItems.find((si) => si.id === item.id);
       return orderedItem
@@ -110,6 +123,13 @@ function InvoiceDetails({
         : item;
     });
 
+    // Check if any inventory item has negative stock
+    const hasNegativeStock = updatedInventory.some((item) => item.qty < 0);
+    if (hasNegativeStock) {
+      alert(t("Cannot save: Insufficient stock for some items"));
+      return;
+    }
+
     const updatedInvoice = {
       ...invoice,
       customerName,
@@ -119,7 +139,7 @@ function InvoiceDetails({
         (acc, item) => acc + item.orderedQty * item.price,
         0
       ),
-      invoiceNumber, // Ensure invoice number is saved
+      invoiceNumber,
       invoiceImageUrl,
       notes,
     };
@@ -127,17 +147,25 @@ function InvoiceDetails({
     const updatedInvoices = invoices.map((inv) =>
       inv.id === invoice.id ? updatedInvoice : inv
     );
+
+    // Update local state
     setInvoices(updatedInvoices);
     setInventory(updatedInventory);
 
+    // Sync to Firebase
     const invoicesRef = ref(realtimeDb, `users/${user.uid}/invoices`);
     const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
-    await Promise.all([
-      set(invoicesRef, updatedInvoices),
-      set(inventoryRef, updatedInventory),
-    ]).catch((error) => console.error("Error syncing data:", error));
-
-    setIsEditing(false);
+    try {
+      await Promise.all([
+        set(invoicesRef, updatedInvoices),
+        set(inventoryRef, updatedInventory),
+      ]);
+      alert(t("Invoice saved successfully"));
+      setIsEditing(false);
+    } catch (error) {
+      console.error("Error syncing data:", error);
+      alert(t("Failed to save invoice to database"));
+    }
   };
 
   const handleDelete = async () => {
@@ -273,26 +301,32 @@ function InvoiceDetails({
               <h3 className="font-semibold">{t("Items")}</h3>
               <ul className="list-disc pl-6">
                 {selectedItems.map((item, index) => (
-                  <li key={index} className="mb-4">
+                  <li key={index} className="mb-4 flex items-center">
                     {item.name} -{" "}
                     <input
                       type="number"
-                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline"
+                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline mx-2"
                       value={item.orderedQty}
                       onChange={(e) =>
                         handleEditItemQty(index, "orderedQty", e.target.value)
                       }
                     />{" "}
-                    x ${item.price} (Bonus:{" "}
+                    x {item.price.toFixed(2)} IQD (Bonus:{" "}
                     <input
                       type="number"
-                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline"
+                      className="p-1 border rounded-md dark:bg-slate-700 dark:border-slate-600 w-20 inline mx-2"
                       value={item.bonusQty}
                       onChange={(e) =>
                         handleEditItemQty(index, "bonusQty", e.target.value)
                       }
                     />
                     )
+                    <button
+                      onClick={() => handleRemoveItem(index)}
+                      className="ml-4 bg-red-500 text-white px-2 py-1 rounded-md"
+                    >
+                      {t("Remove")}
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -327,13 +361,13 @@ function InvoiceDetails({
             <ul className="list-disc pl-6">
               {invoice.items.map((item, index) => (
                 <li key={index}>
-                  {item.name} - {item.orderedQty} x ${item.price.toFixed(2)}{" "}
+                  {item.name} - {item.orderedQty} x {item.price.toFixed(2)} IQD
                   (Bonus: {item.bonusQty})
                 </li>
               ))}
             </ul>
             <div className="mt-4 font-semibold">
-              <p>Total Value: ${invoice.total.toFixed(2)}</p>
+              <p>Total Value: {invoice.total.toFixed(2)} IQD</p>
             </div>
           </>
         )}
