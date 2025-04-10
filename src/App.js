@@ -37,6 +37,7 @@ function App() {
     "https://via.placeholder.com/40"
   );
 
+  // Sync data to Firebase with debounce
   const syncDataToFirebase = useCallback(
     debounce((uid, data) => {
       if (!uid) return;
@@ -48,7 +49,7 @@ function App() {
         ruinedItems: data.ruinedItems || [],
         lastUpdated: new Date().toISOString(),
       }).catch((error) => console.error("Error syncing data:", error));
-    }, 500),
+    }, 1000), // Increased debounce delay to 1 second
     []
   );
 
@@ -74,10 +75,12 @@ function App() {
           userRef,
           (snapshot) => {
             const data = snapshot.val() || {};
-            setInventory(data.inventory || []);
-            setInvoices(data.invoices || []);
-            setReturnHistory(data.returnHistory || []);
-            setRuinedItems(data.ruinedItems || []);
+            // Only update state if local state is empty or older than Firebase data
+            if (!inventory.length) setInventory(data.inventory || []);
+            if (!invoices.length) setInvoices(data.invoices || []);
+            if (!returnHistory.length)
+              setReturnHistory(data.returnHistory || []);
+            if (!ruinedItems.length) setRuinedItems(data.ruinedItems || []);
             setIsLoading(false);
           },
           (error) => {
@@ -98,6 +101,7 @@ function App() {
     return () => unsubscribeAuth();
   }, []);
 
+  // Sync local state to Firebase only when explicitly changed
   useEffect(() => {
     if (user?.uid && !isLoading) {
       syncDataToFirebase(user.uid, {
@@ -317,7 +321,13 @@ function App() {
                     />
                     <Route
                       path="/saved-invoices"
-                      element={<SavedInvoices invoices={invoices} />}
+                      element={
+                        <SavedInvoices
+                          invoices={invoices}
+                          setInvoices={setInvoices}
+                          user={user}
+                        />
+                      }
                     />
                     <Route
                       path="/invoice/:id"
@@ -411,7 +421,6 @@ function App() {
             </div>
           </div>
         )}
-        {/* Footer */}
         <footer className="bg-gray-800 text-white text-center py-2 w-full">
           <p>
             Maxzani System App Beta 1 powered by{" "}
