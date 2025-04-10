@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 function ReturnHistory({ returnHistory }) {
+  const { t } = useTranslation();
   const [filterYear, setFilterYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
   const [filterCustomer, setFilterCustomer] = useState("");
@@ -24,7 +26,7 @@ function ReturnHistory({ returnHistory }) {
     <div className="flex justify-center items-center min-h-screen bg-gray-50 dark:bg-slate-800">
       <div className="w-3/5 max-w-4xl bg-white dark:bg-slate-900 p-6 rounded-lg shadow-md">
         <h2 className="text-3xl font-bold mb-6 text-gray-900 dark:text-slate-50">
-          Return History
+          {t("Return History")}
         </h2>
         <div className="mb-4">
           <select
@@ -32,7 +34,7 @@ function ReturnHistory({ returnHistory }) {
             value={filterCustomer}
             onChange={(e) => setFilterCustomer(e.target.value)}
           >
-            <option value="">Filter by Customer</option>
+            <option value="">{t("Filter by Customer")}</option>
             {[
               ...new Set(returnHistory.map((record) => record.customerName)),
             ].map((customer) => (
@@ -46,7 +48,7 @@ function ReturnHistory({ returnHistory }) {
             value={filterYear}
             onChange={(e) => setFilterYear(e.target.value)}
           >
-            <option value="">Filter by Year</option>
+            <option value="">{t("Filter by Year")}</option>
             {[...Array(11)].map((_, i) => (
               <option key={i} value={2024 + i}>
                 {2024 + i}
@@ -58,7 +60,7 @@ function ReturnHistory({ returnHistory }) {
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
           >
-            <option value="">Filter by Month</option>
+            <option value="">{t("Filter by Month")}</option>
             {[
               "January",
               "February",
@@ -74,7 +76,7 @@ function ReturnHistory({ returnHistory }) {
               "December",
             ].map((month) => (
               <option key={month} value={month}>
-                {month}
+                {t(month)}
               </option>
             ))}
           </select>
@@ -83,19 +85,19 @@ function ReturnHistory({ returnHistory }) {
           <table className="min-w-full text-gray-900 dark:text-slate-50">
             <thead>
               <tr className="bg-gray-100 dark:bg-slate-700">
-                <th className="p-4 text-left">Return ID</th>
-                <th className="p-4 text-left">Customer</th>
-                <th className="p-4 text-left">Date</th>
-                <th className="p-4 text-left">Total</th>
-                <th className="p-4 text-left">Items</th>
-                <th className="p-4 text-left">Actions</th>
+                <th className="p-4 text-left">{t("Return Invoice Number")}</th>
+                <th className="p-4 text-left">{t("Customer")}</th>
+                <th className="p-4 text-left">{t("Date")}</th>
+                <th className="p-4 text-left">{t("Total")}</th>
+                <th className="p-4 text-left">{t("Items")}</th>
+                <th className="p-4 text-left">{t("Actions")}</th>
               </tr>
             </thead>
             <tbody>
               {filteredReturnHistory.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="p-4 text-center">
-                    No returns match your criteria.
+                    {t("No returns match your criteria")}
                   </td>
                 </tr>
               ) : (
@@ -104,19 +106,23 @@ function ReturnHistory({ returnHistory }) {
                     key={record.id}
                     className="border-b dark:border-slate-700"
                   >
-                    <td className="p-4">#{record.id}</td>
+                    <td className="p-4">
+                      {record.returnInvoiceNumber || record.id}
+                    </td>
                     <td className="p-4">{record.customerName}</td>
                     <td className="p-4">
                       {new Date(record.date).toLocaleDateString()}
                     </td>
-                    <td className="p-4">${record.total.toFixed(2)}</td>
-                    <td className="p-4">{record.items.length} items</td>
+                    <td className="p-4">{record.total.toFixed(0)} IQD</td>
+                    <td className="p-4">
+                      {record.items.length} {t("items")}
+                    </td>
                     <td className="p-4">
                       <Link
                         to={`/return-history/${record.id}`}
                         className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md"
                       >
-                        View Details
+                        {t("View Details")}
                       </Link>
                     </td>
                   </tr>
