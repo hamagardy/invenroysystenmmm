@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { ref, onValue } from "firebase/database";
+import { realtimeDb } from "./firebase";
 
-function SavedInvoices({ invoices }) {
+function SavedInvoices({ invoices, setInvoices, user }) {
   const { t } = useTranslation();
   const [filterYear, setFilterYear] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
@@ -10,6 +12,23 @@ function SavedInvoices({ invoices }) {
   const uniqueCustomers = [
     ...new Set(invoices.map((invoice) => invoice.customerName)),
   ];
+
+  // Fetch invoices from Firebase
+  useEffect(() => {
+    if (!user?.uid) return;
+    const invoicesRef = ref(realtimeDb, `users/${user.uid}/invoices`);
+    const unsubscribe = onValue(
+      invoicesRef,
+      (snapshot) => {
+        const data = snapshot.val();
+        setInvoices(data || []);
+      },
+      (error) => {
+        console.error("Error fetching invoices:", error);
+      }
+    );
+    return () => unsubscribe();
+  }, [user, setInvoices]);
 
   const filteredInvoices = () => {
     return invoices.filter((invoice) => {
@@ -97,7 +116,8 @@ function SavedInvoices({ invoices }) {
           <table className="min-w-full text-gray-900 dark:text-slate-50">
             <thead>
               <tr className="bg-gray-100 dark:bg-slate-700">
-                <th className="p-4 text-left">{t("Invoice ID")}</th>
+                <th className="p-4 text-left">{t("Invoice Number")}</th>{" "}
+                {/* Changed from Invoice ID */}
                 <th className="p-4 text-left">{t("Customer")}</th>
                 <th className="p-4 text-left">{t("Date")}</th>
                 <th className="p-4 text-left">{t("Total")}</th>
@@ -107,8 +127,9 @@ function SavedInvoices({ invoices }) {
             <tbody>
               {filteredInvoices().map((invoice) => (
                 <tr key={invoice.id}>
-                  <td className="p-4" data-label={t("Invoice ID")}>
-                    {invoice.id}
+                  <td className="p-4" data-label={t("Invoice Number")}>
+                    {invoice.invoiceNumber || invoice.id}{" "}
+                    {/* Use invoiceNumber, fallback to id */}
                   </td>
                   <td className="p-4" data-label={t("Customer")}>
                     {invoice.customerName}
@@ -117,7 +138,7 @@ function SavedInvoices({ invoices }) {
                     {new Date(invoice.date).toLocaleDateString()}
                   </td>
                   <td className="p-4" data-label={t("Total")}>
-                    ${invoice.total.toFixed(2)}
+                    {invoice.total.toFixed(2)} IQD {/* Changed $ to IQD */}
                   </td>
                   <td className="p-4" data-label={t("Actions")}>
                     <Link

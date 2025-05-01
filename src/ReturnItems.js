@@ -1,12 +1,14 @@
-// ReturnItems.js
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { ref, set } from "firebase/database";
+import { realtimeDb } from "./firebase";
 
 function ReturnItems({
   inventory,
   setInventory,
   returnHistory = [],
   setReturnHistory,
+  user,
 }) {
   const { t } = useTranslation();
   const [customerName, setCustomerName] = useState("");
@@ -17,6 +19,7 @@ function ReturnItems({
     bonusQty: "",
   });
   const [returnDate, setReturnDate] = useState("");
+  const [returnInvoiceNumber, setReturnInvoiceNumber] = useState(""); // Added return invoice number
   const [successMessage, setSuccessMessage] = useState("");
   const [localInventory, setLocalInventory] = useState(inventory || []);
 
@@ -28,72 +31,98 @@ function ReturnItems({
     if (currentItem.itemId && currentItem.qty) {
       const itemId = parseInt(currentItem.itemId, 10);
       const item = localInventory.find((i) => i.id === itemId);
-
       if (!item) {
         alert(t("Item not found"));
         return;
       }
-
       setSelectedItems([
         ...selectedItems,
         {
-          ...item,
+          id: item.id,
+          name: item.name,
+          price: item.price,
           returnedQty: parseInt(currentItem.qty),
           bonusQty: parseInt(currentItem.bonusQty) || 0,
         },
       ]);
       setCurrentItem({ itemId: "", qty: "", bonusQty: "" });
+    } else {
+      alert(t("Please select an item and specify a quantity"));
     }
   };
 
-  const handleSaveReturn = () => {
-    if (customerName && selectedItems.length > 0 && returnDate) {
-      let newReturnId = 1;
-      if (returnHistory.some((record) => record.id === 1)) {
-        newReturnId = Math.max(...returnHistory.map((record) => record.id)) + 1;
-      }
+  const handleSaveReturn = async () => {
+    if (
+      !customerName ||
+      selectedItems.length === 0 ||
+      !returnDate ||
+      !returnInvoiceNumber
+    ) {
+      alert(
+        t(
+          "Please provide a customer name, items, return date, and return invoice number"
+        )
+      );
+      return;
+    }
 
-      const newReturn = {
-        id: newReturnId,
-        customerName,
-        date: new Date(returnDate).toISOString(),
-        items: selectedItems,
-        total: selectedItems.reduce(
-          (acc, item) => acc + item.returnedQty * item.price,
-          0
-        ),
-        type: "return",
-      };
+    const newReturnId =
+      returnHistory.length > 0
+        ? Math.max(...returnHistory.map((record) => record.id)) + 1
+        : 1;
+    const newReturn = {
+      id: newReturnId,
+      customerName,
+      date: new Date(returnDate).toISOString(),
+      items: selectedItems,
+      total: selectedItems.reduce(
+        (acc, item) => acc + item.returnedQty * item.price,
+        0
+      ),
+      returnInvoiceNumber, // Added return invoice number
+      type: "return",
+    };
 
-      const updatedInventory = localInventory.map((item) => {
-        const returnedItem = selectedItems.find((si) => si.id === item.id);
-        if (returnedItem) {
-          return {
+    const updatedInventory = localInventory.map((item) => {
+      const returnedItem = selectedItems.find((si) => si.id === item.id);
+      return returnedItem
+        ? {
             ...item,
             qty: item.qty + returnedItem.returnedQty + returnedItem.bonusQty,
-          };
-        }
-        return item;
-      });
+          }
+        : item;
+    });
 
-      const updatedReturnHistory = [...returnHistory, newReturn];
-      localStorage.setItem(
-        "returnHistory",
-        JSON.stringify(updatedReturnHistory)
+    const updatedReturnHistory = [...returnHistory, newReturn];
+
+    // Sync to Firebase
+    if (user?.uid) {
+      const returnHistoryRef = ref(
+        realtimeDb,
+        `users/${user.uid}/returnHistory`
       );
-
-      setReturnHistory(updatedReturnHistory);
-      setInventory(updatedInventory);
-      setLocalInventory(updatedInventory);
-      setCustomerName("");
-      setSelectedItems([]);
-      setReturnDate("");
-
-      setSuccessMessage(t("Return created successfully"));
-      setTimeout(() => setSuccessMessage(""), 3000);
-    } else {
-      alert(t("Please provide a customer name, items, and return date"));
+      const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
+      try {
+        await Promise.all([
+          set(returnHistoryRef, updatedReturnHistory),
+          set(inventoryRef, updatedInventory),
+        ]);
+      } catch (error) {
+        console.error("Error syncing return data:", error);
+        alert(t("Failed to save return to database"));
+        return;
+      }
     }
+
+    setReturnHistory(updatedReturnHistory);
+    setInventory(updatedInventory);
+    setLocalInventory(updatedInventory);
+    setCustomerName("");
+    setSelectedItems([]);
+    setReturnDate("");
+    setReturnInvoiceNumber("");
+    setSuccessMessage(t("Return created successfully"));
+    setTimeout(() => setSuccessMessage(""), 3000);
   };
 
   return (
@@ -113,6 +142,13 @@ function ReturnItems({
           placeholder={t("Customer Name")}
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
+        />
+        <input
+          type="text"
+          className="mb-4 p-2 w-full border rounded-md dark:bg-slate-700 dark:border-slate-600"
+          placeholder={t("Return Invoice Number")}
+          value={returnInvoiceNumber}
+          onChange={(e) => setReturnInvoiceNumber(e.target.value)}
         />
         <input
           type="date"
@@ -138,7 +174,7 @@ function ReturnItems({
           <input
             type="number"
             className="mb-4 p-2 w-full border rounded-md dark:bg-slate-700 dark:border-slate-600"
-            placeholder={t("Quantity")}
+            placeholder={t("Returned Quantity")}
             value={currentItem.qty}
             onChange={(e) =>
               setCurrentItem({ ...currentItem, qty: e.target.value })
@@ -168,8 +204,8 @@ function ReturnItems({
           <ul className="list-disc pl-6 text-gray-700 dark:text-slate-300">
             {selectedItems.map((item, index) => (
               <li key={index}>
-                {item.name} - {item.returnedQty} x ${item.price} (Bonus:{" "}
-                {item.bonusQty})
+                {item.name} - {item.returnedQty} x {item.price.toFixed(2)} IQD
+                (Bonus: {item.bonusQty})
               </li>
             ))}
           </ul>

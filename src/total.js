@@ -283,4 +283,3 @@ function Total({ inventory, setInventory, user }) {
 }
 
 export default Total;
-                                             
