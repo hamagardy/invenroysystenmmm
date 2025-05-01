@@ -1,11 +1,12 @@
-// RuinItems.js
 import React, { useState } from "react";
+import { ref, set } from "firebase/database";
+import { realtimeDb } from "./firebase"; // Ensure firebase is imported
 
-function RuinItems({ inventory, setInventory, setRuinedItems }) {
+function RuinItems({ inventory, setInventory, setRuinedItems, user }) {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [ruinQty, setRuinQty] = useState("");
 
-  const handleRuinItem = () => {
+  const handleRuinItem = async () => {
     if (typeof setRuinedItems !== "function") {
       console.error("setRuinedItems is not a function. Check props in App.js.");
       alert("Error: Unable to update ruined items. Contact support.");
@@ -31,10 +32,19 @@ function RuinItems({ inventory, setInventory, setRuinedItems }) {
     }
 
     // Update inventory
-    const updatedInventory = inventory
-      .map((i) => (i.id === item.id ? { ...i, qty: i.qty - qty } : i))
-      .filter((i) => i.qty > 0);
+    const updatedInventory = inventory.map((i) =>
+      i.id === item.id ? { ...i, qty: i.qty - qty } : i
+    );
     setInventory(updatedInventory);
+
+    // Sync with Firebase
+    if (user?.uid) {
+      const inventoryRef = ref(realtimeDb, `users/${user.uid}/inventory`);
+      await set(inventoryRef, updatedInventory).catch((error) => {
+        console.error("Error syncing inventory:", error);
+        alert("Failed to sync ruined item to database");
+      });
+    }
 
     // Update ruined items
     setRuinedItems((prev) => {
@@ -44,7 +54,7 @@ function RuinItems({ inventory, setInventory, setRuinedItems }) {
           i.id === item.id ? { ...i, ruinedQty: i.ruinedQty + qty } : i
         );
       }
-      return [...prev, { ...item, ruinedQty: qty }];
+      return [...prev, { ...item, qty: item.qty - qty, ruinedQty: qty }];
     });
 
     alert("Item marked as ruined successfully!");
